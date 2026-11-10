@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package stats
@@ -12,23 +12,29 @@ import (
 
 	"github.com/pion/interceptor"
 	"github.com/pion/interceptor/internal/ntp"
+	"github.com/pion/logging"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 	"github.com/stretchr/testify/assert"
 )
 
 func mustMarshalRTP(t *testing.T, pkt rtp.Packet) []byte {
+	t.Helper()
 	buf, err := pkt.Marshal()
 	assert.NoError(t, err)
+
 	return buf
 }
 
 func mustMarshalRTCPs(t *testing.T, pkt rtcp.Packet) []byte {
+	t.Helper()
 	buf, err := pkt.Marshal()
 	assert.NoError(t, err)
+
 	return buf
 }
 
+//nolint:maintidx
 func TestStatsRecorder(t *testing.T) {
 	cname := &rtcp.SourceDescription{
 		Chunks: []rtcp.SourceDescriptionChunk{{
@@ -41,7 +47,7 @@ func TestStatsRecorder(t *testing.T) {
 	}
 	type record struct {
 		ts      time.Time
-		content interface{}
+		content any
 	}
 	type input struct {
 		name string
@@ -90,11 +96,11 @@ func TestStatsRecorder(t *testing.T) {
 				ReceivedRTPStreamStats: ReceivedRTPStreamStats{
 					PacketsReceived: 3,
 					PacketsLost:     2,
-					Jitter:          90000 / 16,
+					Jitter:          0,
 				},
 				LastPacketReceivedTimestamp: now.Add(2 * time.Second),
 				HeaderBytesReceived:         36,
-				BytesReceived:               36,
+				BytesReceived:               30,
 			},
 		},
 		{
@@ -140,7 +146,7 @@ func TestStatsRecorder(t *testing.T) {
 			expectedOutboundRTPStreamStats: OutboundRTPStreamStats{
 				SentRTPStreamStats: SentRTPStreamStats{
 					PacketsSent: 2,
-					BytesSent:   24,
+					BytesSent:   20,
 				},
 				HeaderBytesSent: 24,
 			},
@@ -196,7 +202,7 @@ func TestStatsRecorder(t *testing.T) {
 			expectedOutboundRTPStreamStats: OutboundRTPStreamStats{
 				SentRTPStreamStats: SentRTPStreamStats{
 					PacketsSent: 2,
-					BytesSent:   24,
+					BytesSent:   20,
 				},
 				HeaderBytesSent: 24,
 			},
@@ -228,7 +234,8 @@ func TestStatsRecorder(t *testing.T) {
 							&rtcp.ReceiverReport{
 								SSRC: 0,
 								Reports: []rtcp.ReceptionReport{{
-									SSRC:             0,
+									SSRC: 0,
+									//nolint:gosec // G115
 									LastSenderReport: uint32((ntp.ToNTP(now) & 0x0000FFFFFFFF0000) >> 16),
 									Delay:            1 * 65536.0,
 								}},
@@ -303,7 +310,8 @@ func TestStatsRecorder(t *testing.T) {
 									&rtcp.DLRRReportBlock{
 										Reports: []rtcp.DLRRReport{
 											{
-												SSRC:   0,
+												SSRC: 0,
+												//nolint:gosec // G115
 												LastRR: uint32((ntp.ToNTP(now) >> 16) & 0xFFFFFFFF),
 												DLRR:   1 * 65536.0,
 											},
@@ -368,7 +376,7 @@ func TestStatsRecorder(t *testing.T) {
 			expectedOutboundRTPStreamStats: OutboundRTPStreamStats{
 				SentRTPStreamStats: SentRTPStreamStats{
 					PacketsSent: 3,
-					BytesSent:   36,
+					BytesSent:   30,
 				},
 				HeaderBytesSent: 36,
 				NACKCount:       1,
@@ -457,7 +465,7 @@ func TestStatsRecorder(t *testing.T) {
 			expectedOutboundRTPStreamStats: OutboundRTPStreamStats{
 				SentRTPStreamStats: SentRTPStreamStats{
 					PacketsSent: 3,
-					BytesSent:   36,
+					BytesSent:   30,
 				},
 				HeaderBytesSent: 36,
 				NACKCount:       1,
@@ -508,7 +516,7 @@ func TestStatsRecorder(t *testing.T) {
 			expectedOutboundRTPStreamStats: OutboundRTPStreamStats{
 				SentRTPStreamStats: SentRTPStreamStats{
 					PacketsSent: 3,
-					BytesSent:   36,
+					BytesSent:   30,
 				},
 				HeaderBytesSent: 36,
 				NACKCount:       0,
@@ -558,7 +566,7 @@ func TestStatsRecorder(t *testing.T) {
 			expectedOutboundRTPStreamStats: OutboundRTPStreamStats{
 				SentRTPStreamStats: SentRTPStreamStats{
 					PacketsSent: 3,
-					BytesSent:   36,
+					BytesSent:   30,
 				},
 				HeaderBytesSent: 36,
 				FIRCount:        0,
@@ -608,7 +616,7 @@ func TestStatsRecorder(t *testing.T) {
 			expectedOutboundRTPStreamStats: OutboundRTPStreamStats{
 				SentRTPStreamStats: SentRTPStreamStats{
 					PacketsSent: 3,
-					BytesSent:   36,
+					BytesSent:   30,
 				},
 				HeaderBytesSent: 36,
 				PLICount:        0,
@@ -678,7 +686,7 @@ func TestStatsRecorder(t *testing.T) {
 				},
 				LastPacketReceivedTimestamp: now,
 				HeaderBytesReceived:         36,
-				BytesReceived:               36,
+				BytesReceived:               30,
 			},
 		},
 		{
@@ -728,7 +736,7 @@ func TestStatsRecorder(t *testing.T) {
 				},
 				LastPacketReceivedTimestamp: now,
 				HeaderBytesReceived:         36,
-				BytesReceived:               36,
+				BytesReceived:               30,
 				PLICount:                    0,
 			},
 		},
@@ -779,36 +787,307 @@ func TestStatsRecorder(t *testing.T) {
 				},
 				LastPacketReceivedTimestamp: now,
 				HeaderBytesReceived:         36,
-				BytesReceived:               36,
+				BytesReceived:               30,
 				FIRCount:                    0,
+			},
+		},
+		{
+			name: "incomingRTPWithJitter",
+			records: []record{
+				{
+					ts: now,
+					content: incomingRTP{
+						header: rtp.Header{
+							SequenceNumber: 7,
+							Timestamp:      0,
+						},
+					},
+				},
+				{
+					ts: now.Add(1 * time.Second),
+					content: incomingRTP{
+						header: rtp.Header{
+							SequenceNumber: 8,
+							Timestamp:      90000,
+						},
+					},
+				},
+				{
+					ts: now.Add(2*time.Second + 100*time.Millisecond),
+					content: incomingRTP{
+						header: rtp.Header{
+							SequenceNumber: 9,
+							Timestamp:      2 * 90000,
+						},
+					},
+				},
+			},
+			expectedInboundRTPStreamStats: InboundRTPStreamStats{
+				ReceivedRTPStreamStats: ReceivedRTPStreamStats{
+					PacketsReceived: 3,
+					PacketsLost:     0,
+					Jitter:          0.00625,
+				},
+				LastPacketReceivedTimestamp: now.Add(2*time.Second + 100*time.Millisecond),
+				HeaderBytesReceived:         36,
+				BytesReceived:               30,
+			},
+		},
+		{
+			name: "PacketsReceivedUnderflow",
+			records: []record{
+				// Initialize remote inbound first sequence number = 1000 via outgoing RTP.
+				{
+					ts: now,
+					content: outgoingRTP{
+						header: rtp.Header{
+							SequenceNumber: 1000,
+						},
+					},
+				},
+				// RR: highest seq still 1000, but TotalLost > expected (1), should clamp received to 0.
+				{
+					ts: now.Add(10 * time.Millisecond),
+					content: incomingRTCP{
+						pkts: []rtcp.Packet{
+							&rtcp.ReceiverReport{
+								SSRC: 0,
+								Reports: []rtcp.ReceptionReport{{
+									SSRC:               0,
+									FractionLost:       0,
+									TotalLost:          10,
+									LastSequenceNumber: 1000,
+									Jitter:             0,
+								}},
+							},
+							cname,
+						},
+					},
+				},
+			},
+			expectedOutboundRTPStreamStats: OutboundRTPStreamStats{
+				SentRTPStreamStats: SentRTPStreamStats{
+					PacketsSent: 1,
+					BytesSent:   10,
+				},
+				HeaderBytesSent: 12,
+			},
+			expectedRemoteInboundRTPStreamStats: RemoteInboundRTPStreamStats{
+				ReceivedRTPStreamStats: ReceivedRTPStreamStats{
+					PacketsReceived: 0,
+					PacketsLost:     10,
+					Jitter:          0,
+				},
+			},
+		},
+		{
+			name: "PacketsReceivedBoundaryZero",
+			records: []record{
+				// Initialize remote inbound first sequence number = 1000 via outgoing RTP.
+				{
+					ts: now,
+					content: outgoingRTP{
+						header: rtp.Header{
+							SequenceNumber: 1000,
+						},
+					},
+				},
+				// RR: last seq = 999 -> expected = 0, TotalLost = 0, received should be 0.
+				{
+					ts: now.Add(10 * time.Millisecond),
+					content: incomingRTCP{
+						pkts: []rtcp.Packet{
+							&rtcp.ReceiverReport{
+								SSRC: 0,
+								Reports: []rtcp.ReceptionReport{{
+									SSRC:               0,
+									FractionLost:       0,
+									TotalLost:          0,
+									LastSequenceNumber: 999,
+									Jitter:             0,
+								}},
+							},
+							cname,
+						},
+					},
+				},
+			},
+			expectedOutboundRTPStreamStats: OutboundRTPStreamStats{
+				SentRTPStreamStats: SentRTPStreamStats{
+					PacketsSent: 1,
+					BytesSent:   10,
+				},
+				HeaderBytesSent: 12,
+			},
+			expectedRemoteInboundRTPStreamStats: RemoteInboundRTPStreamStats{
+				ReceivedRTPStreamStats: ReceivedRTPStreamStats{
+					PacketsReceived: 0,
+					PacketsLost:     0,
+					Jitter:          0,
+				},
+			},
+		},
+		{
+			// Copy of basicOutgoingRTP but with RR embedded in a SR
+			name: "readRRinSR",
+			records: []record{
+				{
+					ts: now,
+					content: outgoingRTP{
+						header: rtp.Header{
+							SequenceNumber: 1,
+						},
+					},
+				},
+				{
+					ts: now,
+					content: outgoingRTP{
+						header: rtp.Header{
+							SequenceNumber: 3,
+						},
+					},
+				},
+				{
+					ts: now,
+					content: incomingRTCP{
+						pkts: []rtcp.Packet{
+							&rtcp.SenderReport{
+								SSRC:    0,
+								NTPTime: ntp.ToNTP(now),
+								Reports: []rtcp.ReceptionReport{
+									{
+										SSRC:               0,
+										FractionLost:       85,
+										TotalLost:          1,
+										LastSequenceNumber: 3,
+										Jitter:             45000,
+									},
+								},
+							},
+							cname,
+						},
+					},
+				},
+			},
+			expectedOutboundRTPStreamStats: OutboundRTPStreamStats{
+				SentRTPStreamStats: SentRTPStreamStats{
+					PacketsSent: 2,
+					BytesSent:   20,
+				},
+				HeaderBytesSent: 24,
+			},
+			expectedRemoteInboundRTPStreamStats: RemoteInboundRTPStreamStats{
+				ReceivedRTPStreamStats: ReceivedRTPStreamStats{
+					PacketsReceived: 2,
+					PacketsLost:     1,
+					Jitter:          0.5,
+				},
+				FractionLost: 0.33203125,
+			},
+			expectedRemoteOutboundRTPStreamStats: RemoteOutboundRTPStreamStats{
+				RemoteTimeStamp: ntp.ToTime(ntp.ToNTP(now)),
+				ReportsSent:     1,
+			},
+		},
+		{
+			name: "ignoreIncomingRTCPWithUnknownSSRC",
+			records: []record{
+				{
+					ts: now,
+					content: incomingRTCP{
+						pkts: []rtcp.Packet{
+							&rtcp.SenderReport{
+								SSRC:    12,
+								NTPTime: ntp.ToNTP(now),
+								Reports: []rtcp.ReceptionReport{
+									{
+										SSRC:               5004,
+										FractionLost:       1,
+										TotalLost:          1,
+										LastSequenceNumber: 1,
+										Jitter:             1,
+										LastSenderReport:   1,
+										Delay:              1,
+									},
+								},
+							},
+							cname,
+							&rtcp.TransportLayerNack{
+								MediaSSRC:  5000,
+								SenderSSRC: 12,
+							},
+							&rtcp.FullIntraRequest{
+								MediaSSRC:  5001,
+								SenderSSRC: 12,
+							},
+							&rtcp.PictureLossIndication{
+								MediaSSRC:  5002,
+								SenderSSRC: 12,
+							},
+							&rtcp.ReceiverReport{
+								SSRC: 12,
+								Reports: []rtcp.ReceptionReport{
+									{
+										SSRC:               5003,
+										FractionLost:       1,
+										TotalLost:          1,
+										LastSequenceNumber: 1,
+										Jitter:             1,
+										LastSenderReport:   1,
+										Delay:              1,
+									},
+								},
+							},
+							&rtcp.ExtendedReport{
+								SenderSSRC: 12,
+								Reports: []rtcp.ReportBlock{
+									&rtcp.DLRRReportBlock{
+										Reports: []rtcp.DLRRReport{
+											{
+												SSRC:   5005,
+												LastRR: 1,
+												DLRR:   2,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+
+			expectedRemoteOutboundRTPStreamStats: RemoteOutboundRTPStreamStats{
+				ReportsSent: 0,
 			},
 		},
 	} {
 		t.Run(fmt.Sprintf("%v:%v", i, cc.name), func(t *testing.T) {
-			r := newRecorder(0, 90_000)
+			recorder := newRecorder(0, 90_000, logging.NewDefaultLoggerFactory())
+			payload := make([]byte, 10)
 
-			r.Start()
+			recorder.Start()
 
 			for _, record := range cc.records {
 				switch v := record.content.(type) {
 				case incomingRTP:
-					r.QueueIncomingRTP(record.ts, mustMarshalRTP(t, rtp.Packet{Header: v.header}), v.attr)
+					recorder.QueueIncomingRTP(record.ts, mustMarshalRTP(t, rtp.Packet{Header: v.header, Payload: payload}), v.attr)
 				case incomingRTCP:
 					pkts := make(rtcp.CompoundPacket, len(v.pkts))
 					copy(pkts, v.pkts)
-					r.QueueIncomingRTCP(record.ts, mustMarshalRTCPs(t, &pkts), v.attr)
+					recorder.QueueIncomingRTCP(record.ts, mustMarshalRTCPs(t, &pkts), v.attr)
 				case outgoingRTP:
-					r.QueueOutgoingRTP(record.ts, &v.header, []byte{}, v.attr)
+					recorder.QueueOutgoingRTP(record.ts, &v.header, payload, v.attr)
 				case outgoingRTCP:
-					r.QueueOutgoingRTCP(record.ts, v.pkts, v.attr)
+					recorder.QueueOutgoingRTCP(record.ts, v.pkts, v.attr)
 				default:
 					assert.FailNow(t, "invalid test case")
 				}
 			}
 
-			s := r.GetStats()
+			s := recorder.GetStats()
 
-			r.Stop()
+			recorder.Stop()
 
 			assert.Equal(t, cc.expectedInboundRTPStreamStats, s.InboundRTPStreamStats)
 			assert.Equal(t, cc.expectedOutboundRTPStreamStats, s.OutboundRTPStreamStats)
@@ -819,7 +1098,7 @@ func TestStatsRecorder(t *testing.T) {
 }
 
 func TestStatsRecorder_DLRR_Precision(t *testing.T) {
-	r := newRecorder(0, 90_000)
+	recorder := newRecorder(5000, 90_000, logging.NewDefaultLoggerFactory())
 
 	report := &rtcp.ExtendedReport{
 		Reports: []rtcp.ReportBlock{
@@ -835,15 +1114,33 @@ func TestStatsRecorder_DLRR_Precision(t *testing.T) {
 		},
 	}
 
-	s := r.recordIncomingXR(internalStats{
+	s := recorder.recordIncomingXR(internalStats{
 		lastReceiverReferenceTimes: []uint64{50000000},
 	}, report, time.Time{})
 
 	assert.Equal(t, int64(s.RemoteOutboundRTPStreamStats.RoundTripTime), int64(-9223372036854775808))
 }
 
+func TestStatsRecorderPayloadAndHeaderBytes(t *testing.T) {
+	recorder := newRecorder(0, 90_000, logging.NewDefaultLoggerFactory())
+	recorder.Start()
+
+	header := rtp.Header{Version: 2, Padding: true, PaddingSize: 4}
+	payload := make([]byte, 100)
+	recorder.QueueIncomingRTP(time.Now(), mustMarshalRTP(t, rtp.Packet{Header: header, Payload: payload}), nil)
+	recorder.QueueOutgoingRTP(time.Now(), &header, payload, nil)
+
+	stats := recorder.GetStats()
+	recorder.Stop()
+
+	assert.Equal(t, uint64(100), stats.InboundRTPStreamStats.BytesReceived)
+	assert.Equal(t, uint64(12+4), stats.InboundRTPStreamStats.HeaderBytesReceived)
+	assert.Equal(t, uint64(100), stats.OutboundRTPStreamStats.BytesSent)
+	assert.Equal(t, uint64(12+4), stats.OutboundRTPStreamStats.HeaderBytesSent)
+}
+
 func TestGetStatsNotBlocking(t *testing.T) {
-	r := newRecorder(0, 90_000)
+	r := newRecorder(0, 90_000, logging.NewDefaultLoggerFactory())
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -857,13 +1154,11 @@ func TestGetStatsNotBlocking(t *testing.T) {
 
 	<-ctx.Done()
 
-	if err := ctx.Err(); err != nil && errors.Is(err, context.DeadlineExceeded) {
-		t.Error("it shouldn't block")
-	}
+	assert.False(t, errors.Is(ctx.Err(), context.DeadlineExceeded), "it shouldn't block")
 }
 
 func TestQueueNotBlocking(t *testing.T) {
-	for _, i := range []struct {
+	for _, testCase := range []struct {
 		f    func(r *recorder)
 		name string
 	}{
@@ -892,8 +1187,8 @@ func TestQueueNotBlocking(t *testing.T) {
 			name: "QueueOutgoingRTCP",
 		},
 	} {
-		t.Run(i.name+"NotBlocking", func(t *testing.T) {
-			r := newRecorder(0, 90_000)
+		t.Run(testCase.name+"NotBlocking", func(t *testing.T) {
+			r := newRecorder(0, 90_000, logging.NewDefaultLoggerFactory())
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
@@ -901,17 +1196,23 @@ func TestQueueNotBlocking(t *testing.T) {
 			go func() {
 				defer cancel()
 				r.Start()
-				i.f(r)
+				testCase.f(r)
 			}()
 			go r.Stop()
 
 			<-ctx.Done()
 
-			if err := ctx.Err(); err != nil && errors.Is(err, context.DeadlineExceeded) {
-				t.Error("it shouldn't block")
-			}
+			assert.False(t, errors.Is(ctx.Err(), context.DeadlineExceeded), "it shouldn't block")
 		})
 	}
+}
+
+func TestRecorder_StopBeforeStart(t *testing.T) {
+	r := newRecorder(1, 90_000, logging.NewDefaultLoggerFactory())
+	r.Stop()
+	r.Start()
+	r.QueueOutgoingRTP(time.Now(), &rtp.Header{SSRC: 1}, []byte{1}, nil)
+	assert.Zero(t, r.GetStats().OutboundRTPStreamStats.PacketsSent)
 }
 
 func TestContains(t *testing.T) {

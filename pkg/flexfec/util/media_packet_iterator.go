@@ -1,6 +1,7 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
+// nolint: revive, staticcheck
 package util
 
 import "github.com/pion/rtp"
@@ -25,6 +26,7 @@ func NewMediaPacketIterator(mediaPackets []rtp.Packet, coveredIndices []uint32) 
 // Reset sets the starting iterating index back to 0.
 func (m *MediaPacketIterator) Reset() *MediaPacketIterator {
 	m.nextIndex = 0
+
 	return m
 }
 
@@ -39,12 +41,17 @@ func (m *MediaPacketIterator) Next() *rtp.Packet {
 	if m.nextIndex == len(m.coveredIndices) {
 		return nil
 	}
-	packet := m.mediaPackets[m.nextIndex]
+	packet := m.mediaPackets[m.coveredIndices[m.nextIndex]]
 	m.nextIndex++
+
 	return &packet
 }
 
 // First returns the first media packet to iterate through.
 func (m *MediaPacketIterator) First() *rtp.Packet {
-	return &m.mediaPackets[0]
+	if len(m.coveredIndices) == 0 {
+		return nil
+	}
+
+	return &m.mediaPackets[m.coveredIndices[0]]
 }

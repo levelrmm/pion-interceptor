@@ -8,7 +8,7 @@
 # If you want to update the shared CI config, send a PR to
 # https://github.com/pion/.goassets instead of this repository.
 #
-# SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+# SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 # SPDX-License-Identifier: MIT
 
 set -eu
@@ -16,7 +16,7 @@ set -eu
 SCRIPT_PATH="$(realpath "$(dirname "$0")")"
 GOASSETS_PATH="${SCRIPT_PATH}/.goassets"
 
-GOASSETS_REF=${GOASSETS_REF:-master}
+GOASSETS_REF=${GOASSETS_REF:-main}
 
 if [ -d "${GOASSETS_PATH}" ]; then
   if ! git -C "${GOASSETS_PATH}" diff --exit-code; then

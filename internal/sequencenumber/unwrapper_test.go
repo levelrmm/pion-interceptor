@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package sequencenumber
@@ -82,6 +82,14 @@ func TestUnwrapper(t *testing.T) {
 		{
 			input:    []uint16{32767, 0},
 			expected: []int64{32767, 0},
+		},
+		{
+			input:    []uint16{0, 1, 4, 3, 2, 5},
+			expected: []int64{0, 1, 4, 3, 2, 5},
+		},
+		{
+			input:    []uint16{65534, 0, 1, 65535, 4, 3, 2, 5},
+			expected: []int64{65534, 65536, 65537, 65535, 65540, 65539, 65538, 65541},
 		},
 		{
 			input: []uint16{

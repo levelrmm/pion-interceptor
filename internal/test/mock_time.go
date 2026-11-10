@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package test
@@ -25,5 +25,6 @@ func (t *MockTime) SetNow(n time.Time) {
 func (t *MockTime) Now() time.Time {
 	t.m.RLock()
 	defer t.m.RUnlock()
+
 	return t.curNow
 }

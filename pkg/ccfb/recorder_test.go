@@ -1,10 +1,10 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
-package rfc8888
+package ccfb
 
 import (
-	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -143,56 +143,71 @@ func TestRecorder(t *testing.T) {
 		}, report.ReportBlocks[0])
 	})
 
-	t.Run("MaxreportsPerStream", func(t *testing.T) {
+	t.Run("MaxreportsPerStream 3 streams", func(t *testing.T) {
 		recorder := NewRecorder()
 		now := time.Time{}
+		maxSize := 1200
 
-		// Add 1000 packets on 10 different streams
-		for i := 0; i < 10; i++ {
-			for j := 0; j < 100; j++ {
-				recorder.AddPacket(now, uint32(i), uint16(j), 0)
+		streams := 3
+		packets := 1000
+		// Add 1000 packets on 3 different streams
+		for range streams {
+			ssrc := rand.Uint32() //nolint:gosec
+			for j := range packets {
+				recorder.AddPacket(now, ssrc, uint16(j), 0) //nolint:gosec // G115
 			}
 		}
-		reports := recorder.BuildReport(time.Time{}, 1380)
+		reports := recorder.BuildReport(time.Time{}, maxSize)
 
-		for i := 0; i < 10; i++ {
-			assert.Greater(t, 72, len(reports.ReportBlocks[i].MetricBlocks))
-			assert.Less(t, 3, len(reports.ReportBlocks[i].MetricBlocks))
+		blocks := 0
+		for i := range streams {
+			blocks += len(reports.ReportBlocks[i].MetricBlocks)
+		}
+		assert.Less(t, blocks*2, maxSize)
+	})
+
+	t.Run("MaxreportsPerStream 10 streams", func(t *testing.T) {
+		recorder := NewRecorder()
+		now := time.Time{}
+		maxSize := 1300
+
+		streams := 10
+		packets := 1000
+		// Add 1000 packets on 10 different streams
+		for range streams {
+			ssrc := rand.Uint32() //nolint:gosec
+			for j := range packets {
+				recorder.AddPacket(now, ssrc, uint16(j), 0) //nolint:gosec // G115
+			}
+		}
+		reports := recorder.BuildReport(time.Time{}, maxSize)
+
+		blocks := 0
+		for i := range streams {
+			blocks += len(reports.ReportBlocks[i].MetricBlocks)
+		}
+		assert.Less(t, blocks*2, maxSize)
+	})
+
+	t.Run("non-positive per-stream budget does not panic", func(t *testing.T) {
+		recorder := NewRecorder()
+		now := time.Time{}
+		maxSize := 1200
+
+		streams := 250
+		for i := range streams {
+			ssrc := uint32(i + 1)
+			recorder.AddPacket(now, ssrc, 0, 0)
+			recorder.AddPacket(now, ssrc, 1, 0)
+		}
+
+		var report *rtcp.CCFeedbackReport
+		assert.NotPanics(t, func() {
+			report = recorder.BuildReport(now, maxSize)
+		})
+		assert.Len(t, report.ReportBlocks, streams)
+		for _, block := range report.ReportBlocks {
+			assert.Empty(t, block.MetricBlocks)
 		}
 	})
-}
-
-func TestNTPTime32(t *testing.T) {
-	zero := time.Date(1900, time.January, 1, 0, 0, 0, 0, time.UTC)
-	notSoLongAgo := time.Date(2022, time.May, 5, 14, 48, 20, 0, time.UTC)
-	for i, cc := range []struct {
-		input    time.Time
-		expected uint32
-	}{
-		{
-			input:    zero,
-			expected: 0,
-		},
-		{
-			input:    zero.Add(time.Second),
-			expected: 1 << 16,
-		},
-		{
-			input:    notSoLongAgo,
-			expected: uint32(uint(notSoLongAgo.Sub(zero).Seconds())&0xffff) << 16,
-		},
-		{
-			input:    zero.Add(400 * time.Millisecond),
-			expected: 26214,
-		},
-		{
-			input:    zero.Add(1400 * time.Millisecond),
-			expected: 1<<16 + 26214,
-		},
-	} {
-		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
-			res := ntpTime32(cc.input)
-			assert.Equalf(t, cc.expected, res, "%b != %b", cc.expected, res)
-		})
-	}
 }

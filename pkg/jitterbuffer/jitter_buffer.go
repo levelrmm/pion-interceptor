@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package jitterbuffer implements a buffer for RTP packets designed to help
@@ -12,34 +12,35 @@ import (
 	"github.com/pion/rtp"
 )
 
-// State tracks a JitterBuffer as either Buffering or Emitting
+// State tracks a JitterBuffer as either Buffering or Emitting.
 type State uint16
 
-// Event represents all events a JitterBuffer can emit
+// Event represents all events a JitterBuffer can emit.
 type Event string
 
 var (
-	// ErrBufferUnderrun is returned when the buffer has no items
+	// ErrBufferUnderrun is returned when the buffer has no items.
 	ErrBufferUnderrun = errors.New("invalid Peek: Empty jitter buffer")
-	// ErrPopWhileBuffering is returned if a jitter buffer is not in a playback state
+	// ErrPopWhileBuffering is returned if a jitter buffer is not in a playback state.
 	ErrPopWhileBuffering = errors.New("attempt to pop while buffering")
 )
 
 const (
-	// Buffering is the state when the jitter buffer has not started emitting yet, or has hit an underflow and needs to re-buffer packets
+	// Buffering is the state when the jitter buffer has not started emitting yet,
+	// or has hit an underflow and needs to re-buffer packets.
 	Buffering State = iota
 	//  Emitting is the state when the jitter buffer is operating nominally
 	Emitting
 )
 
 const (
-	// StartBuffering is emitted when the buffer receives its first packet
+	// StartBuffering is emitted when the buffer receives its first packet.
 	StartBuffering Event = "startBuffering"
-	// BeginPlayback is emitted when the buffer has satisfied its buffer length
+	// BeginPlayback is emitted when the buffer has satisfied its buffer length.
 	BeginPlayback = "playing"
-	// BufferUnderflow is emitted when the buffer does not have enough packets to Pop
+	// BufferUnderflow is emitted when the buffer does not have enough packets to Pop.
 	BufferUnderflow = "underflow"
-	// BufferOverflow is emitted when the buffer has exceeded its limit
+	// BufferOverflow is emitted when the buffer has exceeded its limit.
 	BufferOverflow = "overflow"
 )
 
@@ -50,22 +51,24 @@ func (jbs State) String() string {
 	case Emitting:
 		return "Emitting"
 	}
+
 	return "unknown"
 }
 
 type (
-	// Option will Override JitterBuffer's defaults
+	// Option will Override JitterBuffer's defaults.
 	Option func(jb *JitterBuffer)
-	// EventListener will be called when the corresponding Event occurs
+	// EventListener will be called when the corresponding Event occurs.
 	EventListener func(event Event, jb *JitterBuffer)
 )
 
 // A JitterBuffer will accept Pushed packets, put them in sequence number
 // order, and allows removing in either sequence number order or via a
-// provided timestamp
+// provided timestamp.
 type JitterBuffer struct {
 	packets       *PriorityQueue
 	minStartCount uint16
+	overflowLen   uint16
 	lastSequence  uint16
 	playoutHead   uint16
 	playoutReady  bool
@@ -81,19 +84,20 @@ type JitterBuffer struct {
 //	without its predecessor being present
 //
 // underflowCount will provide the count of attempts to Pop an empty buffer
-// overflowCount will track the number of times the jitter buffer exceeds its limit
+// overflowCount will track the number of times the jitter buffer exceeds its limit.
 type Stats struct {
 	outOfOrderCount uint32
 	underflowCount  uint32
 	overflowCount   uint32
 }
 
-// New will initialize a jitter buffer and its associated statistics
+// New will initialize a jitter buffer and its associated statistics.
 func New(opts ...Option) *JitterBuffer {
 	jb := &JitterBuffer{
 		state:         Buffering,
 		stats:         Stats{0, 0, 0},
 		minStartCount: 50,
+		overflowLen:   100,
 		packets:       NewQueue(),
 		listeners:     make(map[Event][]EventListener),
 	}
@@ -106,7 +110,7 @@ func New(opts ...Option) *JitterBuffer {
 }
 
 // WithMinimumPacketCount will set the required number of packets to be received before
-// any attempt to pop a packet can succeed
+// any attempt to pop a packet can succeed.
 func WithMinimumPacketCount(count uint16) Option {
 	return func(jb *JitterBuffer) {
 		jb.minStartCount = count
@@ -115,12 +119,12 @@ func WithMinimumPacketCount(count uint16) Option {
 
 // Listen will register an event listener
 // The jitter buffer may emit events correspnding, interested listerns should
-// look at Event for available events
+// look at Event for available events.
 func (jb *JitterBuffer) Listen(event Event, cb EventListener) {
 	jb.listeners[event] = append(jb.listeners[event], cb)
 }
 
-// PlayoutHead returns the SequenceNumber that will be attempted to Pop next
+// PlayoutHead returns the SequenceNumber that will be attempted to Pop next.
 func (jb *JitterBuffer) PlayoutHead() uint16 {
 	jb.mutex.Lock()
 	defer jb.mutex.Unlock()
@@ -129,7 +133,7 @@ func (jb *JitterBuffer) PlayoutHead() uint16 {
 }
 
 // SetPlayoutHead allows you to manually specify the packet you wish to pop next
-// If you have encountered a packet that hasn't resolved you can skip it
+// If you have encountered a packet that hasn't resolved you can skip it.
 func (jb *JitterBuffer) SetPlayoutHead(playoutHead uint16) {
 	jb.mutex.Lock()
 	defer jb.mutex.Unlock()
@@ -148,20 +152,24 @@ func (jb *JitterBuffer) updateStats(lastPktSeqNo uint16) {
 
 // Push an RTP packet into the jitter buffer, this does not clone
 // the data so if the memory is expected to be reused, the caller should
-// take this in to account and pass a copy of the packet they wish to buffer
+// take this in to account and pass a copy of the packet they wish to buffer.
 func (jb *JitterBuffer) Push(packet *rtp.Packet) {
 	jb.mutex.Lock()
 	defer jb.mutex.Unlock()
+
 	if jb.packets.Length() == 0 {
 		jb.emit(StartBuffering)
 	}
-	if jb.packets.Length() > 100 {
+
+	if jb.packets.Length() > jb.overflowLen {
 		jb.stats.overflowCount++
 		jb.emit(BufferOverflow)
 	}
+
 	if !jb.playoutReady && jb.packets.Length() == 0 {
 		jb.playoutHead = packet.SequenceNumber
 	}
+
 	jb.updateStats(packet.SequenceNumber)
 	jb.packets.Push(packet, packet.SequenceNumber)
 	jb.updateState()
@@ -198,10 +206,11 @@ func (jb *JitterBuffer) Peek(playoutHead bool) (*rtp.Packet, error) {
 	if playoutHead && jb.state == Emitting {
 		return jb.packets.Find(jb.playoutHead)
 	}
+
 	return jb.packets.Find(jb.lastSequence)
 }
 
-// Pop an RTP packet from the jitter buffer at the current playout head
+// Pop an RTP packet from the jitter buffer at the current playout head.
 func (jb *JitterBuffer) Pop() (*rtp.Packet, error) {
 	jb.mutex.Lock()
 	defer jb.mutex.Unlock()
@@ -212,14 +221,16 @@ func (jb *JitterBuffer) Pop() (*rtp.Packet, error) {
 	if err != nil {
 		jb.stats.underflowCount++
 		jb.emit(BufferUnderflow)
+
 		return nil, err
 	}
 	jb.playoutHead = (jb.playoutHead + 1)
 	jb.updateState()
+
 	return packet, nil
 }
 
-// PopAtSequence will pop an RTP packet from the jitter buffer at the specified Sequence
+// PopAtSequence will pop an RTP packet from the jitter buffer at the specified Sequence.
 func (jb *JitterBuffer) PopAtSequence(sq uint16) (*rtp.Packet, error) {
 	jb.mutex.Lock()
 	defer jb.mutex.Unlock()
@@ -230,15 +241,17 @@ func (jb *JitterBuffer) PopAtSequence(sq uint16) (*rtp.Packet, error) {
 	if err != nil {
 		jb.stats.underflowCount++
 		jb.emit(BufferUnderflow)
+
 		return nil, err
 	}
 	jb.playoutHead = (jb.playoutHead + 1)
 	jb.updateState()
+
 	return packet, nil
 }
 
 // PeekAtSequence will return an RTP packet from the jitter buffer at the specified Sequence
-// without removing it from the buffer
+// without removing it from the buffer.
 func (jb *JitterBuffer) PeekAtSequence(sq uint16) (*rtp.Packet, error) {
 	jb.mutex.Lock()
 	defer jb.mutex.Unlock()
@@ -246,11 +259,12 @@ func (jb *JitterBuffer) PeekAtSequence(sq uint16) (*rtp.Packet, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return packet, nil
 }
 
 // PopAtTimestamp pops an RTP packet from the jitter buffer with the provided timestamp
-// Call this method repeatedly to drain the buffer at the timestamp
+// Call this method repeatedly to drain the buffer at the timestamp.
 func (jb *JitterBuffer) PopAtTimestamp(ts uint32) (*rtp.Packet, error) {
 	jb.mutex.Lock()
 	defer jb.mutex.Unlock()
@@ -261,17 +275,20 @@ func (jb *JitterBuffer) PopAtTimestamp(ts uint32) (*rtp.Packet, error) {
 	if err != nil {
 		jb.stats.underflowCount++
 		jb.emit(BufferUnderflow)
+
 		return nil, err
 	}
 	jb.updateState()
+
 	return packet, nil
 }
 
-// Clear will empty the buffer and optionally reset the state
+// Clear will empty the buffer and optionally reset the state.
 func (jb *JitterBuffer) Clear(resetState bool) {
 	jb.mutex.Lock()
 	defer jb.mutex.Unlock()
 	jb.packets.Clear()
+
 	if resetState {
 		jb.lastSequence = 0
 		jb.state = Buffering

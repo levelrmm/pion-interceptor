@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package report
@@ -41,6 +41,7 @@ type receiverStream struct {
 
 func newReceiverStream(ssrc uint32, clockRate uint32) *receiverStream {
 	receiverSSRC := rand.Uint32() // #nosec
+
 	return &receiverStream{
 		ssrc:         ssrc,
 		receiverSSRC: receiverSSRC,
@@ -54,6 +55,7 @@ func (stream *receiverStream) processRTP(now time.Time, pktHeader *rtp.Header) {
 	stream.m.Lock()
 	defer stream.m.Unlock()
 
+	//nolint:nestif
 	if !stream.started { // first frame
 		stream.started = true
 		stream.setReceived(pktHeader.SequenceNumber)
@@ -104,6 +106,7 @@ func (stream *receiverStream) delReceived(seq uint16) {
 
 func (stream *receiverStream) getReceived(seq uint16) bool {
 	pos := seq % (stream.size * packetsPerHistoryEntry)
+
 	return (stream.packets[pos/packetsPerHistoryEntry] & (1 << (pos % packetsPerHistoryEntry))) != 0
 }
 
@@ -111,7 +114,7 @@ func (stream *receiverStream) processSenderReport(now time.Time, sr *rtcp.Sender
 	stream.m.Lock()
 	defer stream.m.Unlock()
 
-	stream.lastSenderReport = uint32(sr.NTPTime >> 16)
+	stream.lastSenderReport = uint32(sr.NTPTime >> 16) //nolint:gosec // G115
 	stream.lastSenderReportTime = now
 }
 
@@ -131,6 +134,7 @@ func (stream *receiverStream) generateReport(now time.Time) *rtcp.ReceiverReport
 				ret++
 			}
 		}
+
 		return ret
 	}()
 	stream.totalLost += totalLostSinceReport
@@ -143,19 +147,25 @@ func (stream *receiverStream) generateReport(now time.Time) *rtcp.ReceiverReport
 		stream.totalLost = 0xFFFFFF
 	}
 
-	r := &rtcp.ReceiverReport{
+	fractionLost := uint8(0)
+	if totalSinceReport != 0 {
+		fractionLost = uint8(float64(totalLostSinceReport*256) / float64(totalSinceReport))
+	}
+
+	receiverReport := &rtcp.ReceiverReport{
 		SSRC: stream.receiverSSRC,
 		Reports: []rtcp.ReceptionReport{
 			{
 				SSRC:               stream.ssrc,
 				LastSequenceNumber: uint32(stream.seqnumCycles)<<16 | uint32(stream.lastSeqnum),
 				LastSenderReport:   stream.lastSenderReport,
-				FractionLost:       uint8(float64(totalLostSinceReport*256) / float64(totalSinceReport)),
+				FractionLost:       fractionLost,
 				TotalLost:          stream.totalLost,
 				Delay: func() uint32 {
 					if stream.lastSenderReportTime.IsZero() {
 						return 0
 					}
+
 					return uint32(now.Sub(stream.lastSenderReportTime).Seconds() * 65536)
 				}(),
 				Jitter: uint32(stream.jitter),
@@ -165,5 +175,5 @@ func (stream *receiverStream) generateReport(now time.Time) *rtcp.ReceiverReport
 
 	stream.lastReportSeqnum = stream.lastSeqnum
 
-	return r
+	return receiverReport
 }

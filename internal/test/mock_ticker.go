@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package test
@@ -16,12 +16,12 @@ type MockTicker struct {
 func (t *MockTicker) Stop() {
 }
 
-// Ch returns the tickers channel
+// Ch returns the tickers channel.
 func (t *MockTicker) Ch() <-chan time.Time {
 	return t.C
 }
 
-// Tick sends now to the channel
+// Tick sends now to the channel.
 func (t *MockTicker) Tick(now time.Time) {
 	t.C <- now
 }

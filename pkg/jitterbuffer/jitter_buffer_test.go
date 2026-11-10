@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package jitterbuffer
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+//nolint:cyclop,maintidx
 func TestJitterBuffer(t *testing.T) {
 	assert := assert.New(t)
 
@@ -51,8 +52,16 @@ func TestJitterBuffer(t *testing.T) {
 
 	t.Run("Appends packets and begins playout", func(*testing.T) {
 		jb := New()
-		for i := 0; i < 100; i++ {
-			jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: uint16(5012 + i), Timestamp: uint32(512 + i)}, Payload: []byte{0x02}})
+		for i := range 100 {
+			jb.Push(
+				&rtp.Packet{
+					Header: rtp.Header{
+						SequenceNumber: uint16(5012 + i), //nolint:gosec // G115
+						Timestamp:      uint32(512 + i),  //nolint:gosec // G115
+					},
+					Payload: []byte{0x02},
+				},
+			)
 		}
 		assert.Equal(jb.packets.Length(), uint16(100))
 		assert.Equal(jb.state, Emitting)
@@ -67,8 +76,17 @@ func TestJitterBuffer(t *testing.T) {
 		jb.Listen(BeginPlayback, func(event Event, _ *JitterBuffer) {
 			events = append(events, event)
 		})
-		for i := 0; i < 2; i++ {
-			jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: uint16(5012 + i), Timestamp: uint32(512 + i)}, Payload: []byte{0x02}})
+		for i := range 2 {
+			//nolint:gosec // G115
+			jb.Push(
+				&rtp.Packet{
+					Header: rtp.Header{
+						SequenceNumber: uint16(5012 + i),
+						Timestamp:      uint32(512 + i),
+					},
+					Payload: []byte{0x02},
+				},
+			)
 		}
 		assert.Equal(jb.packets.Length(), uint16(2))
 		assert.Equal(jb.state, Emitting)
@@ -82,8 +100,9 @@ func TestJitterBuffer(t *testing.T) {
 
 	t.Run("Wraps playout correctly", func(*testing.T) {
 		jb := New()
-		for i := 0; i < 100; i++ {
-			sqnum := uint16(math.MaxUint16 - 32 + i)
+		for i := range 100 {
+			sqnum := uint16(math.MaxUint16 - 32 + i) //nolint:gosec // G115
+			//nolint:gosec // G115
 			jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: sqnum, Timestamp: uint32(512 + i)}, Payload: []byte{0x02}})
 		}
 		assert.Equal(jb.packets.Length(), uint16(100))
@@ -92,10 +111,10 @@ func TestJitterBuffer(t *testing.T) {
 		head, err := jb.Pop()
 		assert.Equal(head.SequenceNumber, uint16(math.MaxUint16-32))
 		assert.Equal(err, nil)
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			head, err := jb.Pop()
 			if i < 99 {
-				assert.Equal(head.SequenceNumber, uint16((math.MaxUint16 - 31 + i)))
+				assert.Equal(head.SequenceNumber, uint16((math.MaxUint16 - 31 + i))) //nolint:gosec // G115
 				assert.Equal(err, nil)
 			} else {
 				assert.Equal(head, (*rtp.Packet)(nil))
@@ -105,8 +124,9 @@ func TestJitterBuffer(t *testing.T) {
 
 	t.Run("Pops at timestamp correctly", func(*testing.T) {
 		jb := New()
-		for i := 0; i < 100; i++ {
-			sqnum := uint16((math.MaxUint16 - 32 + i))
+		for i := range 100 {
+			sqnum := uint16((math.MaxUint16 - 32 + i)) //nolint:gosec // G115
+			//nolint:gosec // G115
 			jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: sqnum, Timestamp: uint32(512 + i)}, Payload: []byte{0x02}})
 		}
 		assert.Equal(jb.packets.Length(), uint16(100))
@@ -131,8 +151,9 @@ func TestJitterBuffer(t *testing.T) {
 		pkt, err := jb.Peek(false)
 		assert.Equal(pkt.SequenceNumber, uint16(5002))
 		assert.Equal(err, nil)
-		for i := 0; i < 100; i++ {
-			sqnum := uint16((math.MaxUint16 - 32 + i))
+		for i := range 100 {
+			sqnum := uint16((math.MaxUint16 - 32 + i)) //nolint:gosec // G115
+			//nolint:gosec // G115
 			jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: sqnum, Timestamp: uint32(512 + i)}, Payload: []byte{0x02}})
 		}
 		pkt, err = jb.Peek(true)
@@ -142,8 +163,9 @@ func TestJitterBuffer(t *testing.T) {
 
 	t.Run("Pops at sequence with an invalid sequence number", func(*testing.T) {
 		jb := New()
-		for i := 0; i < 50; i++ {
-			sqnum := uint16((math.MaxUint16 - 32 + i))
+		for i := range 50 {
+			sqnum := uint16((math.MaxUint16 - 32 + i)) //nolint:gosec // G115
+			//nolint:gosec // G115
 			jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: sqnum, Timestamp: uint32(512 + i)}, Payload: []byte{0x02}})
 		}
 		jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 1019, Timestamp: uint32(9000)}, Payload: []byte{0x02}})
@@ -157,8 +179,9 @@ func TestJitterBuffer(t *testing.T) {
 
 	t.Run("Pops at timestamp with multiple packets", func(*testing.T) {
 		jb := New()
-		for i := 0; i < 50; i++ {
-			sqnum := uint16((math.MaxUint16 - 32 + i))
+		for i := range 50 {
+			sqnum := uint16((math.MaxUint16 - 32 + i)) //nolint:gosec // G115
+			//nolint:gosec // G115
 			jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: sqnum, Timestamp: uint32(512 + i)}, Payload: []byte{0x02}})
 		}
 		jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 1019, Timestamp: uint32(9000)}, Payload: []byte{0x02}})
@@ -179,8 +202,9 @@ func TestJitterBuffer(t *testing.T) {
 
 	t.Run("Peeks at timestamp with multiple packets", func(*testing.T) {
 		jb := New()
-		for i := 0; i < 50; i++ {
-			sqnum := uint16((math.MaxUint16 - 32 + i))
+		for i := range 50 {
+			sqnum := uint16((math.MaxUint16 - 32 + i)) //nolint:gosec // G115
+			//nolint:gosec // G115
 			jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: sqnum, Timestamp: uint32(512 + i)}, Payload: []byte{0x02}})
 		}
 		jb.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 1019, Timestamp: uint32(9000)}, Payload: []byte{0x02}})
@@ -203,7 +227,7 @@ func TestJitterBuffer(t *testing.T) {
 		jb := New(WithMinimumPacketCount(1))
 
 		// Push packets 0-9, but no packet 4
-		for i := uint16(0); i < 10; i++ {
+		for i := range uint16(10) {
 			if i == 4 {
 				continue
 			}
@@ -211,7 +235,7 @@ func TestJitterBuffer(t *testing.T) {
 		}
 
 		// The first 3 packets will be able to popped
-		for i := 0; i < 4; i++ {
+		for range 4 {
 			pkt, err := jb.Pop()
 			assert.NoError(err)
 			assert.NotNil(pkt)
@@ -232,7 +256,7 @@ func TestJitterBuffer(t *testing.T) {
 
 		// Increment the PlayoutHead and popping will work again
 		jb.SetPlayoutHead(jb.PlayoutHead() + 1)
-		for i := 0; i < 6; i++ {
+		for range 6 {
 			pkt, err := jb.Pop()
 			assert.NoError(err)
 			assert.NotNil(pkt)

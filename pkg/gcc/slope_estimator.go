@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package gcc
@@ -35,6 +35,7 @@ func (e *slopeEstimator) onArrivalGroup(ag arrivalGroup) {
 	if !e.init {
 		e.group = ag
 		e.init = true
+
 		return
 	}
 	measurement := interGroupDelayVariation(e.group, ag)

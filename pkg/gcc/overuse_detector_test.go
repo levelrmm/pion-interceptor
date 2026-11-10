@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package gcc
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ func (t staticThreshold) compare(estimate, _ time.Duration) (usage, time.Duratio
 	if estimate < -time.Duration(t) {
 		return usageUnder, estimate, time.Duration(t)
 	}
+
 	return usageNormal, estimate, time.Duration(t)
 }
 
@@ -87,7 +89,6 @@ func TestOveruseDetectorWithoutDelay(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			out := make(chan DelayStats)
 			dsw := func(ds DelayStats) {
@@ -98,7 +99,12 @@ func TestOveruseDetectorWithoutDelay(t *testing.T) {
 				defer close(out)
 				for _, e := range tc.estimates {
 					od.onDelayStats(e)
-					time.Sleep(tc.delay)
+					if tc.delay == 0 {
+						// avoid time.Sleep(0) since it's broken on windows.
+						runtime.Gosched()
+					} else {
+						time.Sleep(tc.delay)
+					}
 				}
 			}()
 			received := []usage{}

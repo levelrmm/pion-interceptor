@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package twcc
@@ -9,15 +9,17 @@ import (
 
 	"github.com/pion/interceptor"
 	"github.com/pion/interceptor/internal/test"
+	"github.com/pion/logging"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
-	transportTest "github.com/pion/transport/v3/test"
+	transportTest "github.com/pion/transport/v5/test"
 	"github.com/stretchr/testify/assert"
 )
 
+//nolint:maintidx
 func TestSenderInterceptor(t *testing.T) {
 	t.Run("before any packets", func(t *testing.T) {
-		f, err := NewSenderInterceptor()
+		f, err := NewSenderInterceptor(WithLoggerFactory(logging.NewDefaultLoggerFactory()))
 		assert.NoError(t, err)
 
 		i, err := f.NewInterceptor("")
@@ -42,7 +44,13 @@ func TestSenderInterceptor(t *testing.T) {
 	})
 
 	t.Run("after RTP packets", func(t *testing.T) {
-		f, err := NewSenderInterceptor()
+		mt := &test.MockTime{}
+		mt.SetNow(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC))
+		mTick := &test.MockTicker{C: make(chan time.Time)}
+		f, err := NewSenderInterceptor(
+			SendNow(mt.Now),
+			SendTicker(func(time.Duration) Ticker { return mTick }),
+		)
 		assert.NoError(t, err)
 
 		i, err := f.NewInterceptor("")
@@ -58,14 +66,22 @@ func TestSenderInterceptor(t *testing.T) {
 			assert.NoError(t, stream.Close())
 		}()
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			hdr := rtp.Header{}
+			//nolint:gosec // G115
 			tcc, err := (&rtp.TransportCCExtension{TransportSequence: uint16(i)}).Marshal()
 			assert.NoError(t, err)
 			err = hdr.SetExtension(1, tcc)
 			assert.NoError(t, err)
 			stream.ReceiveRTP(&rtp.Packet{Header: hdr})
 		}
+
+		// Reading a packet means the interceptor has handed it to the send
+		// loop, so the tick below happens after all packets are recorded.
+		for range 10 {
+			assert.NoError(t, (<-stream.ReadRTP()).Err)
+		}
+		mTick.Tick(mt.Now())
 
 		pkts := <-stream.WrittenRTCP()
 		assert.Equal(t, 1, len(pkts))
@@ -103,6 +119,7 @@ func TestSenderInterceptor(t *testing.T) {
 			time.Sleep(time.Duration(d) * time.Millisecond)
 
 			hdr := rtp.Header{}
+			//nolint:gosec // G115
 			tcc, err := (&rtp.TransportCCExtension{TransportSequence: uint16(i)}).Marshal()
 			assert.NoError(t, err)
 			err = hdr.SetExtension(1, tcc)
@@ -159,6 +176,7 @@ func TestSenderInterceptor(t *testing.T) {
 			time.Sleep(time.Duration(d) * time.Millisecond)
 
 			hdr := rtp.Header{}
+			//nolint:gosec // G115
 			tcc, err := (&rtp.TransportCCExtension{TransportSequence: uint16(i)}).Marshal()
 			assert.NoError(t, err)
 			err = hdr.SetExtension(1, tcc)
@@ -226,6 +244,7 @@ func TestSenderInterceptor(t *testing.T) {
 
 		for _, i := range []int{65530, 65534, 65535, 1, 2, 10} {
 			hdr := rtp.Header{}
+			//nolint:gosec // G115
 			tcc, err := (&rtp.TransportCCExtension{TransportSequence: uint16(i)}).Marshal()
 			assert.NoError(t, err)
 			err = hdr.SetExtension(1, tcc)
@@ -280,7 +299,7 @@ func TestSenderInterceptor_Leak(t *testing.T) {
 	f, err := NewSenderInterceptor(SendInterval(200 * time.Millisecond))
 	assert.NoError(t, err)
 
-	i, err := f.NewInterceptor("")
+	testInterceptor, err := f.NewInterceptor("")
 	assert.NoError(t, err)
 
 	stream := test.NewMockStream(&interceptor.StreamInfo{RTPHeaderExtensions: []interceptor.RTPHeaderExtension{
@@ -288,14 +307,15 @@ func TestSenderInterceptor_Leak(t *testing.T) {
 			URI: transportCCURI,
 			ID:  1,
 		},
-	}}, i)
+	}}, testInterceptor)
 	defer func() {
 		assert.NoError(t, stream.Close())
 	}()
 
-	assert.NoError(t, i.Close())
+	assert.NoError(t, testInterceptor.Close())
 	for _, i := range []int{0, 1, 2, 3, 4, 5} {
 		hdr := rtp.Header{}
+		//nolint:gosec // G115
 		tcc, err := (&rtp.TransportCCExtension{TransportSequence: uint16(i)}).Marshal()
 		assert.NoError(t, err)
 
