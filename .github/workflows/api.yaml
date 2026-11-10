@@ -8,7 +8,7 @@
 # If you want to update the shared CI config, send a PR to
 # https://github.com/pion/.goassets instead of this repository.
 #
-# SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+# SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 # SPDX-License-Identifier: MIT
 
 name: API
@@ -17,4 +17,4 @@ on:
 
 jobs:
   check:
-    uses: pion/.goassets/.github/workflows/api.reusable.yml@master
+    uses: pion/.goassets/.github/workflows/api.reusable.yml@main

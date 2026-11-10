@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package report
@@ -16,12 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+//nolint:maintidx
 func TestReceiverInterceptor(t *testing.T) {
 	t.Run("before any packet", func(t *testing.T) {
 		mt := test.MockTime{}
 		f, err := NewReceiverInterceptor(
 			ReceiverInterval(time.Millisecond*50),
-			ReceiverLog(logging.NewDefaultLoggerFactory().NewLogger("test")),
+			WithReceiverLoggerFactory(logging.NewDefaultLoggerFactory()),
 			ReceiverNow(mt.Now),
 		)
 		assert.NoError(t, err)
@@ -75,9 +76,9 @@ func TestReceiverInterceptor(t *testing.T) {
 			assert.NoError(t, stream.Close())
 		}()
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			stream.ReceiveRTP(&rtp.Packet{Header: rtp.Header{
-				SequenceNumber: uint16(i),
+				SequenceNumber: uint16(i), //nolint:gosec // G115
 			}})
 		}
 
@@ -117,9 +118,9 @@ func TestReceiverInterceptor(t *testing.T) {
 			assert.NoError(t, stream.Close())
 		}()
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			stream.ReceiveRTP(&rtp.Packet{Header: rtp.Header{
-				SequenceNumber: uint16(i),
+				SequenceNumber: uint16(i), //nolint:gosec // G115
 			}})
 		}
 

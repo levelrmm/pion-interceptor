@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package util implements utilities to better support Fec decoding / encoding.
@@ -33,6 +33,7 @@ func (b *BitArray) GetBit(bitIndex uint32) uint8 {
 		if result > 0 {
 			return 1
 		}
+
 		return 0
 	}
 
@@ -41,5 +42,6 @@ func (b *BitArray) GetBit(bitIndex uint32) uint8 {
 	if result > 0 {
 		return 1
 	}
+
 	return 0
 }

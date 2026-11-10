@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package twcc
@@ -49,7 +49,7 @@ func TestHeaderExtensionInterceptor(t *testing.T) {
 			var wg sync.WaitGroup
 			num := 10
 			wg.Add(num)
-			for i := 0; i < num; i++ {
+			for i := range num {
 				go func(ch chan *rtp.Packet, id uint16) {
 					stream := test.NewMockStream(&interceptor.StreamInfo{RTPHeaderExtensions: []interceptor.RTPHeaderExtension{
 						{
@@ -69,10 +69,10 @@ func TestHeaderExtensionInterceptor(t *testing.T) {
 							assert.Equal(t, seqNum, p.SequenceNumber)
 							ch <- p
 						case <-time.After(10 * time.Millisecond):
-							panic("written rtp packet not found")
+							assert.FailNow(t, "written rtp packet not found")
 						}
 					}
-				}(pChan, uint16(i+1))
+				}(pChan, uint16(i+1)) //nolint:gosec // G115
 			}
 			wg.Wait()
 			close(pChan)

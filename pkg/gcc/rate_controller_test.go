@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package gcc
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRateControllerRun(t *testing.T) {
@@ -40,10 +41,10 @@ func TestRateControllerRun(t *testing.T) {
 	t0 := time.Time{}
 	mockNoFn := func() time.Time {
 		t0 = t0.Add(100 * time.Millisecond)
+
 		return t0
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			out := make(chan DelayStats)
 			dc := newRateController(mockNoFn, 100_000, 1_000, 50_000_000, func(ds DelayStats) {
@@ -75,4 +76,26 @@ func TestRateControllerRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A quiet desktop can send below the available bandwidth. Once the controller
+// chooses stateIncrease, its receive-rate cap must not lower the target.
+func TestRateControllerIncreasePreservesTargetForLowReceivedRate(t *testing.T) {
+	var output []DelayStats
+	controller := newRateController(time.Now, 100_000, 1_000, 50_000_000, func(stats DelayStats) {
+		output = append(output, stats)
+	})
+	controller.onReceivedRate(50_000)
+	controller.updateRTT(300 * time.Millisecond)
+	controller.latestDecreaseRate = &exponentialMovingAverage{
+		average:      50_000,
+		stdDeviation: 10_000,
+	}
+	controller.onDelayStats(DelayStats{Usage: usageNormal})
+
+	controller.onDelayStats(DelayStats{Usage: usageNormal})
+
+	require.Len(t, output, 1)
+	require.Equal(t, stateIncrease, output[0].State)
+	require.Equal(t, 100_000, output[0].TargetBitrate)
 }

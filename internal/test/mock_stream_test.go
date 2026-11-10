@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package test
@@ -13,64 +13,61 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+//nolint:cyclop
 func TestMockStream(t *testing.T) {
-	s := NewMockStream(&interceptor.StreamInfo{}, &interceptor.NoOp{})
+	mockStream := NewMockStream(&interceptor.StreamInfo{}, &interceptor.NoOp{})
 
-	assert.NoError(t, s.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{}}))
+	assert.NoError(t, mockStream.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{}}))
 
 	select {
-	case <-s.WrittenRTCP():
+	case <-mockStream.WrittenRTCP():
 	case <-time.After(10 * time.Millisecond):
-		t.Error("rtcp packet written but not found")
+		assert.Fail(t, "rtcp packet written but not found")
 	}
 	select {
-	case <-s.WrittenRTCP():
-		t.Error("single rtcp packet written, but multiple found")
-	case <-time.After(10 * time.Millisecond):
-	}
-
-	assert.NoError(t, s.WriteRTP(&rtp.Packet{}))
-
-	select {
-	case <-s.WrittenRTP():
-	case <-time.After(10 * time.Millisecond):
-		t.Error("rtp packet written but not found")
-	}
-	select {
-	case <-s.WrittenRTP():
-		t.Error("single rtp packet written, but multiple found")
+	case <-mockStream.WrittenRTCP():
+		assert.Fail(t, "single rtcp packet written, but multiple found")
 	case <-time.After(10 * time.Millisecond):
 	}
 
-	s.ReceiveRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{}})
+	assert.NoError(t, mockStream.WriteRTP(&rtp.Packet{}))
+
 	select {
-	case r := <-s.ReadRTCP():
-		if r.Err != nil {
-			t.Errorf("read rtcp returned error: %v", r.Err)
-		}
+	case <-mockStream.WrittenRTP():
 	case <-time.After(10 * time.Millisecond):
-		t.Error("rtcp packet received but not read")
+		assert.Fail(t, "rtp packet written but not found")
 	}
 	select {
-	case r := <-s.ReadRTCP():
-		t.Errorf("single rtcp packet received, but multiple read: %v", r)
+	case <-mockStream.WrittenRTP():
+		assert.Fail(t, "single rtp packet written, but multiple found")
 	case <-time.After(10 * time.Millisecond):
 	}
 
-	s.ReceiveRTP(&rtp.Packet{})
+	mockStream.ReceiveRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{}})
 	select {
-	case r := <-s.ReadRTP():
-		if r.Err != nil {
-			t.Errorf("read rtcp returned error: %v", r.Err)
-		}
+	case r := <-mockStream.ReadRTCP():
+		assert.NoError(t, r.Err, "read rtcp returned error")
 	case <-time.After(10 * time.Millisecond):
-		t.Error("rtp packet received but not read")
+		assert.Fail(t, "rtcp packet received but not read")
 	}
 	select {
-	case r := <-s.ReadRTP():
-		t.Errorf("single rtp packet received, but multiple read: %v", r)
+	case r := <-mockStream.ReadRTCP():
+		assert.Fail(t, "single rtcp packet received, but multiple read: %v", r)
 	case <-time.After(10 * time.Millisecond):
 	}
 
-	assert.NoError(t, s.Close())
+	mockStream.ReceiveRTP(&rtp.Packet{})
+	select {
+	case r := <-mockStream.ReadRTP():
+		assert.NoError(t, r.Err, "read rtp returned error")
+	case <-time.After(10 * time.Millisecond):
+		assert.Fail(t, "rtp packet received but not read")
+	}
+	select {
+	case r := <-mockStream.ReadRTP():
+		assert.Fail(t, "single rtp packet received, but multiple read: %v", r)
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	assert.NoError(t, mockStream.Close())
 }

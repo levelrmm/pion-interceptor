@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package gcc
@@ -10,64 +10,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestMinInt(t *testing.T) {
-	tests := []struct {
-		expected int
-		a, b     int
-	}{
-		{
-			expected: 0,
-			a:        0,
-			b:        100,
-		},
-		{
-			expected: 10,
-			a:        10,
-			b:        10,
-		},
-		{
-			expected: 1,
-			a:        10,
-			b:        1,
-		},
-	}
-	for i, tt := range tests {
-		tt := tt
-		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
-			assert.Equal(t, tt.expected, minInt(tt.a, tt.b))
-		})
-	}
-}
-
-func TestMaxInt(t *testing.T) {
-	tests := []struct {
-		expected int
-		a, b     int
-	}{
-		{
-			expected: 100,
-			a:        0,
-			b:        100,
-		},
-		{
-			expected: 10,
-			a:        10,
-			b:        10,
-		},
-		{
-			expected: 10,
-			a:        10,
-			b:        1,
-		},
-	}
-	for i, tt := range tests {
-		tt := tt
-		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
-			assert.Equal(t, tt.expected, maxInt(tt.a, tt.b))
-		})
-	}
-}
 
 func TestClamp(t *testing.T) {
 	tests := []struct {
@@ -108,7 +50,6 @@ func TestClamp(t *testing.T) {
 		},
 	}
 	for i, tt := range tests {
-		tt := tt
 		t.Run(fmt.Sprintf("int/%v", i), func(t *testing.T) {
 			assert.Equal(t, tt.expected, clampInt(tt.x, tt.min, tt.max))
 		})

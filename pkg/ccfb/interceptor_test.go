@@ -1,22 +1,25 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
-package rfc8888
+package ccfb
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/pion/interceptor"
 	"github.com/pion/interceptor/internal/test"
+	"github.com/pion/logging"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 	"github.com/stretchr/testify/assert"
 )
 
+//nolint:maintidx,cyclop
 func TestInterceptor(t *testing.T) {
 	t.Run("before any packet", func(t *testing.T) {
-		f, err := NewSenderInterceptor()
+		f, err := NewSenderInterceptor(WithLoggerFactory(logging.NewDefaultLoggerFactory()))
 		assert.NoError(t, err)
 
 		i, err := f.NewInterceptor("")
@@ -51,7 +54,7 @@ func TestInterceptor(t *testing.T) {
 			assert.NoError(t, stream.Close())
 		}()
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			stream.ReceiveRTP(&rtp.Packet{
 				Header: rtp.Header{
 					Version:          0,
@@ -59,7 +62,7 @@ func TestInterceptor(t *testing.T) {
 					Extension:        false,
 					Marker:           false,
 					PayloadType:      0,
-					SequenceNumber:   uint16(i),
+					SequenceNumber:   uint16(i), //nolint:gosec // G115
 					Timestamp:        0,
 					SSRC:             123456,
 					CSRC:             []uint32{},
@@ -115,7 +118,7 @@ func TestInterceptor(t *testing.T) {
 			mNow.SetNow(zero.Add(d))
 			stream.ReceiveRTP(&rtp.Packet{
 				Header: rtp.Header{
-					SequenceNumber: uint16(i),
+					SequenceNumber: uint16(i), //nolint:gosec // G115
 					SSRC:           123456,
 				},
 			})
@@ -123,7 +126,7 @@ func TestInterceptor(t *testing.T) {
 			case r := <-stream.ReadRTP():
 				assert.NoError(t, r.Err)
 			case <-time.After(10 * time.Millisecond):
-				t.Fatal("receiver rtp packet not found")
+				assert.Fail(t, "receiver rtp packet not found")
 			}
 		}
 		mTick.Tick(zero.Add(time.Second))
@@ -200,7 +203,7 @@ func TestInterceptor(t *testing.T) {
 			mNow.SetNow(zero.Add(time.Duration(sequenceNumberToDelay[i]) * time.Millisecond))
 			stream.ReceiveRTP(&rtp.Packet{
 				Header: rtp.Header{
-					SequenceNumber: uint16(i),
+					SequenceNumber: uint16(i), //nolint:gosec // G115
 					SSRC:           123456,
 				},
 			})
@@ -208,7 +211,7 @@ func TestInterceptor(t *testing.T) {
 			case r := <-stream.ReadRTP():
 				assert.NoError(t, r.Err)
 			case <-time.After(10 * time.Millisecond):
-				t.Fatal("receiver rtp packet not found")
+				assert.Fail(t, "receiver rtp packet not found")
 			}
 		}
 		mTick.Tick(zero.Add(time.Second))
@@ -279,4 +282,69 @@ func TestInterceptor(t *testing.T) {
 			},
 		}, ccfb.ReportBlocks[0].MetricBlocks)
 	})
+}
+
+func TestReadAfterClose(t *testing.T) {
+	f, err := NewSenderInterceptor()
+	assert.NoError(t, err)
+
+	intcp, err := f.NewInterceptor("")
+	assert.NoError(t, err)
+
+	intcp.BindRTCPWriter(interceptor.RTCPWriterFunc(
+		func(pkts []rtcp.Packet, attributes interceptor.Attributes) (int, error) {
+			return 0, nil
+		},
+	))
+
+	raw, err := (&rtp.Packet{
+		Header:  rtp.Header{Version: 2, SequenceNumber: 1, SSRC: 123456},
+		Payload: []byte{},
+	}).Marshal()
+	assert.NoError(t, err)
+
+	reader := intcp.BindRemoteStream(&interceptor.StreamInfo{SSRC: 123456}, interceptor.RTPReaderFunc(
+		func(b []byte, a interceptor.Attributes) (int, interceptor.Attributes, error) {
+			return copy(b, raw), a, nil
+		},
+	))
+
+	assert.NoError(t, intcp.Close())
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _, err := reader.Read(make([]byte, 1500), nil)
+		assert.ErrorIs(t, err, errClosed)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		assert.Fail(t, "read after close blocked")
+	}
+}
+
+func TestConcurrentClose(t *testing.T) {
+	f, err := NewSenderInterceptor()
+	assert.NoError(t, err)
+
+	intcp, err := f.NewInterceptor("")
+	assert.NoError(t, err)
+
+	intcp.BindRTCPWriter(interceptor.RTCPWriterFunc(
+		func(_ []rtcp.Packet, _ interceptor.Attributes) (int, error) {
+			return 0, nil
+		},
+	))
+
+	var wg sync.WaitGroup
+	for range 10 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			assert.NoError(t, intcp.Close())
+		}()
+	}
+	wg.Wait()
 }

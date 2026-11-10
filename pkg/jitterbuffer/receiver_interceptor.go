@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package jitterbuffer
@@ -11,26 +11,32 @@ import (
 	"github.com/pion/rtp"
 )
 
-// InterceptorFactory is a interceptor.Factory for a GeneratorInterceptor
+// InterceptorFactory is a interceptor.Factory for a GeneratorInterceptor.
 type InterceptorFactory struct {
 	opts []ReceiverInterceptorOption
 }
 
-// NewInterceptor constructs a new ReceiverInterceptor
+// NewInterceptor constructs a new ReceiverInterceptor.
 func (g *InterceptorFactory) NewInterceptor(_ string) (interceptor.Interceptor, error) {
-	i := &ReceiverInterceptor{
+	receiverInterceptor := &ReceiverInterceptor{
 		close:  make(chan struct{}),
-		log:    logging.NewDefaultLoggerFactory().NewLogger("jitterbuffer"),
 		buffer: New(),
 	}
 
 	for _, opt := range g.opts {
-		if err := opt(i); err != nil {
+		if err := opt(receiverInterceptor); err != nil {
 			return nil, err
 		}
 	}
 
-	return i, nil
+	if receiverInterceptor.loggerFactory == nil {
+		receiverInterceptor.loggerFactory = logging.NewDefaultLoggerFactory()
+	}
+	if receiverInterceptor.log == nil {
+		receiverInterceptor.log = receiverInterceptor.loggerFactory.NewLogger("jitterbuffer")
+	}
+
+	return receiverInterceptor, nil
 }
 
 // ReceiverInterceptor places a JitterBuffer in the chain to smooth packet arrival
@@ -52,21 +58,24 @@ func (g *InterceptorFactory) NewInterceptor(_ string) (interceptor.Interceptor, 
 //	arriving) quickly enough.
 type ReceiverInterceptor struct {
 	interceptor.NoOp
-	buffer *JitterBuffer
-	m      sync.Mutex
-	wg     sync.WaitGroup
-	close  chan struct{}
-	log    logging.LeveledLogger
+	buffer        *JitterBuffer
+	m             sync.Mutex
+	wg            sync.WaitGroup
+	close         chan struct{}
+	log           logging.LeveledLogger
+	loggerFactory logging.LoggerFactory
 }
 
-// NewInterceptor returns a new InterceptorFactory
+// NewInterceptor returns a new InterceptorFactory.
 func NewInterceptor(opts ...ReceiverInterceptorOption) (*InterceptorFactory, error) {
 	return &InterceptorFactory{opts}, nil
 }
 
-// BindRemoteStream lets you modify any incoming RTP packets. It is called once for per RemoteStream. The returned method
-// will be called once per rtp packet.
-func (i *ReceiverInterceptor) BindRemoteStream(_ *interceptor.StreamInfo, reader interceptor.RTPReader) interceptor.RTPReader {
+// BindRemoteStream lets you modify any incoming RTP packets. It is called once for per RemoteStream.
+// The returned method will be called once per rtp packet.
+func (i *ReceiverInterceptor) BindRemoteStream(
+	_ *interceptor.StreamInfo, reader interceptor.RTPReader,
+) interceptor.RTPReader {
 	return interceptor.RTPReaderFunc(func(b []byte, a interceptor.Attributes) (int, interceptor.Attributes, error) {
 		buf := make([]byte, len(b))
 		n, attr, err := reader.Read(buf, a)
@@ -86,8 +95,10 @@ func (i *ReceiverInterceptor) BindRemoteStream(_ *interceptor.StreamInfo, reader
 				return 0, nil, err
 			}
 			nlen, err := newPkt.MarshalTo(b)
+
 			return nlen, attr, err
 		}
+
 		return n, attr, ErrPopWhileBuffering
 	})
 }
@@ -100,11 +111,12 @@ func (i *ReceiverInterceptor) UnbindRemoteStream(_ *interceptor.StreamInfo) {
 	i.buffer.Clear(true)
 }
 
-// Close closes the interceptor
+// Close closes the interceptor.
 func (i *ReceiverInterceptor) Close() error {
 	defer i.wg.Wait()
 	i.m.Lock()
 	defer i.m.Unlock()
 	i.buffer.Clear(true)
+
 	return nil
 }

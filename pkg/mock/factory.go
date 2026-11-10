@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package mock
@@ -10,7 +10,7 @@ type Factory struct {
 	NewInterceptorFn func(id string) (interceptor.Interceptor, error)
 }
 
-// NewInterceptor implements Interceptor
+// NewInterceptor implements Interceptor.
 func (f *Factory) NewInterceptor(id string) (interceptor.Interceptor, error) {
 	return f.NewInterceptorFn(id)
 }

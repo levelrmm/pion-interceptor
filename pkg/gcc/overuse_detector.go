@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package gcc
@@ -43,19 +43,23 @@ func (d *overuseDetector) onDelayStats(ds DelayStats) {
 	thresholdUse, estimate, currentThreshold := d.threshold.compare(ds.Estimate, ds.LastReceiveDelta)
 
 	use := usageNormal
-	if thresholdUse == usageOver {
+	if thresholdUse == usageOver { //nolint:nestif
 		if d.increasingDuration == 0 {
 			d.increasingDuration = delta / 2
 		} else {
 			d.increasingDuration += delta
 		}
+
 		d.increasingCounter++
-		if d.increasingDuration > d.overuseTime && d.increasingCounter > 1 {
+
+		if (d.overuseTime == 0 && d.increasingCounter > 1) ||
+			(d.increasingDuration > d.overuseTime && d.increasingCounter > 1) {
 			if estimate > d.lastEstimate {
 				use = usageOver
 			}
 		}
 	}
+
 	if thresholdUse == usageUnder {
 		d.increasingCounter = 0
 		d.increasingDuration = 0
@@ -67,6 +71,7 @@ func (d *overuseDetector) onDelayStats(ds DelayStats) {
 		d.increasingCounter = 0
 		use = usageNormal
 	}
+
 	d.lastEstimate = estimate
 
 	d.dsWriter(DelayStats{

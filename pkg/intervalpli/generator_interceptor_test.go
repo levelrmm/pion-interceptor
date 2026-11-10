@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 package intervalpli
@@ -17,7 +17,7 @@ import (
 func TestPLIGeneratorInterceptor_Unsupported(t *testing.T) {
 	i, err := NewGeneratorInterceptor(
 		GeneratorInterval(time.Millisecond*10),
-		GeneratorLog(logging.NewDefaultLoggerFactory().NewLogger("test")),
+		WithLoggerFactory(logging.NewDefaultLoggerFactory()),
 	)
 	assert.Nil(t, err)
 
@@ -41,7 +41,7 @@ func TestPLIGeneratorInterceptor_Unsupported(t *testing.T) {
 }
 
 func TestPLIGeneratorInterceptor(t *testing.T) {
-	i, err := NewGeneratorInterceptor(
+	generatorInterceptor, err := NewGeneratorInterceptor(
 		GeneratorInterval(time.Second*1),
 		GeneratorLog(logging.NewDefaultLoggerFactory().NewLogger("test")),
 	)
@@ -55,7 +55,7 @@ func TestPLIGeneratorInterceptor(t *testing.T) {
 		RTCPFeedback: []interceptor.RTCPFeedback{
 			{Type: "nack", Parameter: "pli"},
 		},
-	}, i)
+	}, generatorInterceptor)
 	defer func() {
 		assert.NoError(t, stream.Close())
 	}()

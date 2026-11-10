@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+// SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 // SPDX-License-Identifier: MIT
 
 // Package flexfec implements FlexFEC to recover missing RTP packets due to packet loss.
@@ -20,12 +20,17 @@ const (
 	BaseFecHeaderSize = 12
 )
 
+// EncoderFactory is an interface for generic FEC encoders.
+type EncoderFactory interface {
+	NewEncoder(payloadType uint8, ssrc uint32) FlexEncoder
+}
+
 // FlexEncoder is the interface that FecInterceptor uses to encode Fec packets.
 type FlexEncoder interface {
 	EncodeFec(mediaPackets []rtp.Packet, numFecPackets uint32) []rtp.Packet
 }
 
-// FlexEncoder20 implements the Fec encoding mechanism for the "Flex" variant of FlexFec.
+// FlexEncoder20 implementation is WIP, contains bugs and no tests. Check out FlexEncoder03.
 type FlexEncoder20 struct {
 	fecBaseSn   uint16
 	payloadType uint8
@@ -33,7 +38,8 @@ type FlexEncoder20 struct {
 	coverage    *ProtectionCoverage
 }
 
-// NewFlexEncoder returns a new FlexFecEncer.
+// NewFlexEncoder returns a new FlexEncoder20.
+// FlexEncoder20 implementation is WIP, contains bugs and no tests. Check out FlexEncoder03.
 func NewFlexEncoder(payloadType uint8, ssrc uint32) *FlexEncoder20 {
 	return &FlexEncoder20{
 		payloadType: payloadType,
@@ -59,7 +65,7 @@ func (flex *FlexEncoder20) EncodeFec(mediaPackets []rtp.Packet, numFecPackets ui
 
 	// Generate FEC payloads
 	fecPackets := make([]rtp.Packet, numFecPackets)
-	for fecPacketIndex := uint32(0); fecPacketIndex < numFecPackets; fecPacketIndex++ {
+	for fecPacketIndex := range numFecPackets {
 		fecPackets[fecPacketIndex] = flex.encodeFlexFecPacket(fecPacketIndex, mediaPackets[0].SequenceNumber)
 	}
 
@@ -92,10 +98,17 @@ func (flex *FlexEncoder20) encodeFlexFecPacket(fecPacketIndex uint32, mediaBaseS
 		Payload: append(flexFecHeader, flexFecRepairPayload...),
 	}
 	flex.fecBaseSn++
+
 	return packet
 }
 
-func (flex *FlexEncoder20) encodeFlexFecHeader(mediaPackets *util.MediaPacketIterator, mask1 uint16, optionalMask2 uint32, optionalMask3 uint64, mediaBaseSn uint16) []byte {
+func (flex *FlexEncoder20) encodeFlexFecHeader(
+	mediaPackets *util.MediaPacketIterator,
+	mask1 uint16,
+	optionalMask2 uint32,
+	optionalMask3 uint64,
+	mediaBaseSn uint16,
+) []byte {
 	/*
 	   0                   1                   2                   3
 	        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -145,9 +158,9 @@ func (flex *FlexEncoder20) encodeFlexFecHeader(mediaPackets *util.MediaPacketIte
 		flexFecHeader[1] ^= tmpMediaPacketBuf[1]
 
 		// XOR the length recovery field
-		lengthRecoveryVal := uint16(mediaPacket.MarshalSize() - BaseRTPHeaderSize)
-		flexFecHeader[2] ^= uint8(lengthRecoveryVal >> 8)
-		flexFecHeader[3] ^= uint8(lengthRecoveryVal)
+		lengthRecoveryVal := uint16(mediaPacket.MarshalSize() - BaseRTPHeaderSize) //nolint:gosec // G115
+		flexFecHeader[2] ^= uint8(lengthRecoveryVal >> 8)                          //nolint:gosec // G115
+		flexFecHeader[3] ^= uint8(lengthRecoveryVal)                               //nolint:gosec // G115
 
 		// XOR the 5th to 8th bytes of the header: the timestamp field
 		flexFecHeader[4] ^= flexFecHeader[4]
@@ -170,6 +183,7 @@ func (flex *FlexEncoder20) encodeFlexFecHeader(mediaPackets *util.MediaPacketIte
 		binary.BigEndian.PutUint64(flexFecHeader[16:24], optionalMask3)
 		flexFecHeader[12] |= 0b10000000
 	}
+
 	return flexFecHeader
 }
 
@@ -186,9 +200,10 @@ func (flex *FlexEncoder20) encodeFlexFecRepairPayload(mediaPackets *util.MediaPa
 			copy(flexFecPayloadTmp, flexFecPayload)
 			flexFecPayload = flexFecPayloadTmp
 		}
-		for byteIndex := 0; byteIndex < len(mediaPacketPayload); byteIndex++ {
+		for byteIndex := range mediaPacketPayload {
 			flexFecPayload[byteIndex] ^= mediaPacketPayload[byteIndex]
 		}
 	}
+
 	return flexFecPayload
 }

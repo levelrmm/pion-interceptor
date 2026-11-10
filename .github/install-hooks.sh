@@ -8,7 +8,7 @@
 # If you want to update the shared CI config, send a PR to
 # https://github.com/pion/.goassets instead of this repository.
 #
-# SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+# SPDX-FileCopyrightText: 2026 The Pion community <https://pion.ly>
 # SPDX-License-Identifier: MIT
 
 SCRIPT_PATH="$(realpath "$(dirname "$0")")"
@@ -17,4 +17,3 @@ SCRIPT_PATH="$(realpath "$(dirname "$0")")"
 
 cp "${GOASSETS_PATH}/hooks/commit-msg.sh" "${SCRIPT_PATH}/../.git/hooks/commit-msg"
 cp "${GOASSETS_PATH}/hooks/pre-commit.sh" "${SCRIPT_PATH}/../.git/hooks/pre-commit"
-cp "${GOASSETS_PATH}/hooks/pre-push.sh" "${SCRIPT_PATH}/../.git/hooks/pre-push"
